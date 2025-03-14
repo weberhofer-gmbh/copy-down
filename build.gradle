@@ -1,4 +1,3 @@
-
 buildscript {
     repositories {
         mavenCentral()
@@ -10,13 +9,13 @@ buildscript {
 
 plugins {
     id 'java'
-    id 'com.vanniktech.maven.publish' version "0.21.0"
+    id 'com.vanniktech.maven.publish' version "0.31.0"
     id 'signing'
 }
 
 
 group 'io.github.furstenheim'
-version '1.1'
+version '1.2-SNAPSHOT'
 
 repositories {
     maven {
@@ -26,24 +25,17 @@ repositories {
     mavenCentral()
 }
 
-test {
-    testLogging {
-        events "failed"
-        exceptionFormat "full"
-        showStandardStreams true
-    }
+tasks.named('test', Test) {
     useJUnitPlatform()
 }
 
 dependencies {
-    testImplementation (
-            'org.junit.jupiter:junit-jupiter-api:5.9.0',
-            'org.hamcrest:hamcrest-library:2.2',
-            'org.junit.jupiter:junit-jupiter-engine:5.9.0',
-            'org.junit.jupiter:junit-jupiter-params:5.9.0',
-            'com.shazam:shazamcrest:0.11',
-            'com.google.code.gson:gson:2.9.0'
+    testImplementation(
+            'org.junit.jupiter:junit-jupiter-api:5.11.4',
+            'org.hamcrest:hamcrest-library:3.0',
+            'org.junit.jupiter:junit-jupiter-engine:5.11.4',
+            'org.junit.jupiter:junit-jupiter-params:5.11.4',
+            'com.google.code.gson:gson:2.12.0'
     )
-    implementation 'org.jsoup:jsoup:1.15.2'
+    implementation 'org.jsoup:jsoup:1.19.1'
 }
-
