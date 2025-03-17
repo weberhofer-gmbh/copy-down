@@ -761,5 +761,35 @@
     },
     "input": "\n<pre><code>\nCode\n\n</code></pre>\n    ",
     "output": "```\n\nCode\n\n```"
+  },
+  {
+    "name": "basic table",
+    "options": {},
+    "input": "\n<table>\n    <thead>\n        <tr>\n            <th>Header 1</th>\n            <th>Header 2</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td>Data 1</td>\n            <td>Data 2</td>\n        </tr>\n    </tbody>\n</table>",
+    "output": "| Header 1 | Header 2 |\n| -------- | -------- |\n| Data 1   | Data 2   |"
+  },
+  {
+    "name": "empty table",
+    "options": {},
+    "input": "\n<table>\n    <thead>\n        <tr>\n            <th>Header 1</th>\n            <th>Header 2</th>\n        </tr>\n    </thead>\n    <tbody>\n    </tbody>\n</table>",
+    "output": "| Header 1 | Header 2 |\n| -------- | -------- |"
+  },
+  {
+    "name": "table with html elements",
+    "options": {},
+    "input": "\n<table>\n    <thead>\n        <tr>\n            <th>Header 1</th>\n            <th>Header 2</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td><strong>Bold Text</strong></td>\n            <td><em>Italic Text</em></td>\n        </tr>\n        <tr>\n            <td><a href=\"https://example.com\">Link</a></td>\n            <td>Normal Text</td>\n        </tr>\n    </tbody>\n</table>",
+    "output": "| Header 1                    | Header 2      |\n| --------------------------- | ------------- |\n| **Bold Text**               | _Italic Text_ |\n| [Link](https://example.com) | Normal Text   |"
+  },
+  {
+    "name": "table with long text",
+    "options": {},
+    "input": "\n<table>\n    <thead>\n        <tr>\n            <th>Header 1</th>\n            <th>Header 2</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td>This is a very long text inside the table cell that might cause issues</td>\n            <td>Another long text here</td>\n        </tr>\n    </tbody>\n</table>",
+    "output": "| Header 1                                                               | Header 2               |\n| ---------------------------------------------------------------------- | ---------------------- |\n| This is a very long text inside the table cell that might cause issues | Another long text here |"
+  },
+  {
+    "name": "table with empty cells",
+    "options": {},
+    "input": "\n<table>\n    <thead>\n        <tr>\n            <th>Header 1</th>\n            <th>Header 2</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td></td>\n            <td>Data 2</td>\n        </tr>\n        <tr>\n            <td>Data 3</td>\n            <td></td>\n        </tr>\n    </tbody>\n</table>",
+    "output": "| Header 1 | Header 2 |\n| -------- | -------- |\n|          | Data 2   |\n| Data 3   |          |"
   }
 ]
