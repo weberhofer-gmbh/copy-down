@@ -5,10 +5,7 @@ import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,11 +25,11 @@ public class CopyDown {
     }
 
     /**
-     * Accepts a HTML string and converts it to markdown
+     * Accepts an HTML string and converts it to Markdown
      * <p>
-     * Note, if LinkStyle is chosen to be REFERENCED the method is not thread safe.
+     * Note, if LinkStyle is chosen to be REFERENCED, the method is not thread safe.
      *
-     * @param input html to be converted
+     * @param input HTML to be converted
      * @return markdown text
      */
     public String convert(String input) {
@@ -97,9 +94,9 @@ public class CopyDown {
         Rule rule = rules.findRule(node.element);
         String content = process(node);
         CopyNode.FlankingWhiteSpaces flankingWhiteSpaces = node.flankingWhitespace();
-        if (flankingWhiteSpaces.getLeading()
-                .length() > 0 || flankingWhiteSpaces.getTrailing()
-                .length() > 0) {
+        if (!flankingWhiteSpaces.getLeading()
+                .isEmpty() || !flankingWhiteSpaces.getTrailing()
+                .isEmpty()) {
             content = content.trim();
         }
         return flankingWhiteSpaces.getLeading() + rule.getReplacement()
@@ -111,15 +108,20 @@ public class CopyDown {
 
     private String join(String string1, String string2) {
         Matcher trailingMatcher = trailingNewLinePattern.matcher(string1);
-        trailingMatcher.find();
+        boolean hasTrailingMatch = trailingMatcher.find();
+
         Matcher leadingMatcher = leadingNewLinePattern.matcher(string2);
-        leadingMatcher.find();
-        int nNewLines = Integer.min(2, Integer.max(leadingMatcher.group()
-                .length(), trailingMatcher.group()
-                .length()));
+        boolean hasLeadingMatch = leadingMatcher.find();
+
+        int trailingLength = hasTrailingMatch ? trailingMatcher.group().length() : 0;
+        int leadingLength = hasLeadingMatch ? leadingMatcher.group().length() : 0;
+
+        int nNewLines = Integer.min(2, Integer.max(leadingLength, trailingLength));
         String newLineJoin = String.join("", Collections.nCopies(nNewLines, "\n"));
+
         return trailingMatcher.replaceAll("") + newLineJoin + leadingMatcher.replaceAll("");
     }
+
 
     private String escape(String string) {
         for (Escape escape : escapes) {
@@ -129,21 +131,17 @@ public class CopyDown {
     }
 
     class Rules {
-        private List<Rule> rules;
+        private final List<Rule> rules;
 
         public Rules() {
             this.rules = new ArrayList<>();
 
-            addRule("blankReplacement", new Rule((element) -> CopyNode.isBlank(element),
+            addRule("blankReplacement", new Rule(CopyNode::isBlank,
                     (content, element) -> CopyNode.isBlock(element) ? "\n\n" : ""));
-            addRule("paragraph", new Rule("p", (content, element) -> {
-                return "\n\n" + content + "\n\n";
-            }));
-            addRule("br", new Rule("br", (content, element) -> {
-                return options.br + "\n";
-            }));
+            addRule("paragraph", new Rule("p", (content, element) -> "\n\n" + content + "\n\n"));
+            addRule("br", new Rule("br", (content, element) -> options.br + "\n"));
             addRule("heading", new Rule(new String[] { "h1", "h2", "h3", "h4", "h5", "h6" }, (content, element) -> {
-                Integer hLevel = Integer.parseInt(element.nodeName()
+                int hLevel = Integer.parseInt(element.nodeName()
                         .substring(1, 2));
                 if (options.headingStyle == HeadingStyle.SETEXT && hLevel < 3) {
                     String underline = String.join("", Collections.nCopies(content.length(), hLevel == 1 ? "=" : "-"));
@@ -160,7 +158,8 @@ public class CopyDown {
             addRule("table", new Rule("table", (content, element) -> convertTable((Element) element)));
             addRule("list", new Rule(new String[] { "ul", "ol" }, (content, element) -> {
                 Element parent = (Element) element.parentNode();
-                if (parent.nodeName()
+                if (Objects.requireNonNull(parent)
+                        .nodeName()
                         .equals("li") && parent.child(parent.childrenSize() - 1) == element) {
                     return "\n" + content;
                 } else {
@@ -173,46 +172,47 @@ public class CopyDown {
                         .replaceAll("(?m)\n", "\n    "); // indent
                 String prefix = options.bulletListMaker + "   ";
                 Element parent = (Element) element.parentNode();
-                if (parent.nodeName()
+                if (Objects.requireNonNull(parent)
+                        .nodeName()
                         .equals("ol")) {
                     String start = parent.attr("start");
-                    int index = parent.children()
-                            .indexOf(element);
-                    int parsedStart = 1;
-                    if (start.length() != 0) {
-                        try {
-                            parsedStart = Integer.valueOf(start);
-                        } catch (NumberFormatException e) {
-                            e.printStackTrace();
+                    List<Element> children = parent.children();
+
+                    int index = -1;
+                    for (int i = 0; i < children.size(); i++) {
+                        if (children.get(i) == element) {
+                            index = i;
+                            break;
                         }
                     }
-                    prefix = String.valueOf(parsedStart + index) + ".  ";
+                    int parsedStart = 1;
+                    if (!start.isEmpty()) {
+                        try {
+                            parsedStart = Integer.parseInt(start);
+                        } catch (NumberFormatException e) {
+                            throw new NumberFormatException("Unable to parse " + start + " as an integer");
+                        }
+                    }
+                    prefix = parsedStart + index + ".  ";
                 }
                 return prefix + content + (element.nextSibling() != null && !Pattern.compile("\n$")
                         .matcher(content)
                         .find() ? "\n" : "");
             }));
-            addRule("indentedCodeBlock", new Rule((element) -> {
-                return options.codeBlockStyle == CodeBlockStyle.INDENTED && element.nodeName()
-                        .equals("pre") && element.childNodeSize() > 0 && element.childNode(0)
-                        .nodeName()
-                        .equals("code");
-            }, (content, element) -> {
+            addRule("indentedCodeBlock", new Rule((element) -> options.codeBlockStyle == CodeBlockStyle.INDENTED && element.nodeName()
+                    .equals("pre") && element.childNodeSize() > 0 && element.childNode(0)
+                    .nodeName()
+                    .equals("code"), (content, element) -> {
                 // TODO check textContent
                 return "\n\n    " + ((Element) element.childNode(0)).wholeText()
                         .replaceAll("\n", "\n    ");
             }));
-            addRule("fencedCodeBock", new Rule((element) -> {
-                return options.codeBlockStyle == CodeBlockStyle.FENCED && element.nodeName()
-                        .equals("pre") && element.childNodeSize() > 0 && element.childNode(0)
-                        .nodeName()
-                        .equals("code");
-            }, (content, element) -> {
+            addRule("fencedCodeBock", new Rule((element) -> options.codeBlockStyle == CodeBlockStyle.FENCED && element.nodeName()
+                    .equals("pre") && element.childNodeSize() > 0 && element.childNode(0)
+                    .nodeName()
+                    .equals("code"), (content, element) -> {
                 String childClass = element.childNode(0)
                         .attr("class");
-                if (childClass == null) {
-                    childClass = "";
-                }
                 Matcher languageMatcher = Pattern.compile("language-(\\S+)")
                         .matcher(childClass);
                 String language = "";
@@ -237,35 +237,29 @@ public class CopyDown {
                     fenceSize = Math.max(group.length() + 1, fenceSize);
                 }
                 String fence = String.join("", Collections.nCopies(fenceSize, fenceChar));
-                if (code.length() > 0 && code.charAt(code.length() - 1) == '\n') {
+                if (!code.isEmpty() && code.charAt(code.length() - 1) == '\n') {
                     code = code.substring(0, code.length() - 1);
                 }
                 return ("\n\n" + fence + language + "\n" + code + "\n" + fence + "\n\n");
             }));
 
-            addRule("horizontalRule", new Rule("hr", (content, element) -> {
-                return "\n\n" + options.hr + "\n\n";
-            }));
-            addRule("inlineLink", new Rule((element) -> {
-                return options.linkStyle == LinkStyle.INLINED && element.nodeName()
-                        .equals("a") && element.attr("href")
-                        .length() != 0;
-            }, (content, element) -> {
+            addRule("horizontalRule", new Rule("hr", (content, element) -> "\n\n" + options.hr + "\n\n"));
+            addRule("inlineLink", new Rule((element) -> options.linkStyle == LinkStyle.INLINED && element.nodeName()
+                    .equals("a") && !element.attr("href")
+                    .isEmpty(), (content, element) -> {
                 String href = element.attr("href");
                 String title = cleanAttribute(element.attr("title"));
-                if (title.length() != 0) {
+                if (!title.isEmpty()) {
                     title = " \"" + title + "\"";
                 }
                 return "[" + content + "](" + href + title + ")";
             }));
-            addRule("referenceLink", new Rule((element) -> {
-                return options.linkStyle == LinkStyle.REFERENCED && element.nodeName()
-                        .equals("a") && element.attr("href")
-                        .length() != 0;
-            }, (content, element) -> {
+            addRule("referenceLink", new Rule((element) -> options.linkStyle == LinkStyle.REFERENCED && element.nodeName()
+                    .equals("a") && !element.attr("href")
+                    .isEmpty(), (content, element) -> {
                 String href = element.attr("href");
                 String title = cleanAttribute(element.attr("title"));
-                if (title.length() != 0) {
+                if (!title.isEmpty()) {
                     title = " \"" + title + "\"";
                 }
                 String replacement;
@@ -289,35 +283,35 @@ public class CopyDown {
                 return replacement;
             }, () -> {
                 String referenceString = "";
-                if (references.size() > 0) {
+                if (!references.isEmpty()) {
                     referenceString = "\n\n" + String.join("\n", references) + "\n\n";
                 }
                 return referenceString;
             }));
             addRule("emphasis", new Rule(new String[] { "em", "i" }, (content, element) -> {
                 if (content.trim()
-                        .length() == 0) {
+                        .isEmpty()) {
                     return "";
                 }
                 return options.emDelimiter + content + options.emDelimiter;
             }));
             addRule("strong", new Rule(new String[] { "strong", "b" }, (content, element) -> {
                 if (content.trim()
-                        .length() == 0) {
+                        .isEmpty()) {
                     return "";
                 }
                 return options.strongDelimiter + content + options.strongDelimiter;
             }));
             addRule("code", new Rule((element) -> {
                 boolean hasSiblings = element.previousSibling() != null || element.nextSibling() != null;
-                boolean isCodeBlock = element.parentNode()
+                boolean isCodeBlock = Objects.requireNonNull(element.parentNode())
                         .nodeName()
                         .equals("pre") && !hasSiblings;
                 return element.nodeName()
                         .equals("code") && !isCodeBlock;
             }, (content, element) -> {
                 if (content.trim()
-                        .length() == 0) {
+                        .isEmpty()) {
                     return "";
                 }
                 String delimiter = "`";
@@ -337,14 +331,11 @@ public class CopyDown {
                         trailingSpace = " ";
                     }
                     int counter = 1;
-                    if (delimiter.equals(matcher.group())) {
-                        counter++;
-                    }
-                    while (matcher.find()) {
+                    do {
                         if (delimiter.equals(matcher.group())) {
                             counter++;
                         }
-                    }
+                    } while (matcher.find());
                     delimiter = String.join("", Collections.nCopies(counter, "`"));
                 }
                 return delimiter + leadingSpace + content + trailingSpace + delimiter;
@@ -352,12 +343,12 @@ public class CopyDown {
             addRule("img", new Rule("img", (content, element) -> {
                 String alt = cleanAttribute(element.attr("alt"));
                 String src = element.attr("src");
-                if (src.length() == 0) {
+                if (src.isEmpty()) {
                     return "";
                 }
                 String title = cleanAttribute(element.attr("title"));
                 String titlePart = "";
-                if (title.length() != 0) {
+                if (!title.isEmpty()) {
                     titlePart = " \"" + title + "\"";
                 }
                 return "![" + alt + "]" + "(" + src + titlePart + ")";
